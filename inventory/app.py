@@ -1,6 +1,7 @@
 """Flask REST API: CRUD routes for inventory."""
 from flask import Flask, jsonify, request
 
+from . import openfoodfacts as off
 from .store import InventoryStore
 
 
@@ -76,6 +77,44 @@ def create_app(store=None):
         if not db().delete(item_id):
             return jsonify({"error": "item not found"}), 404
         return jsonify({"message": "item deleted"})
+
+    # ---- External API (OpenFoodFacts) ----
+    @app.get("/external/barcode/<barcode>")
+    def external_barcode(barcode):
+        try:
+            product = off.fetch_by_barcode(barcode)
+        except off.ExternalAPIError as exc:
+            return jsonify({"error": str(exc)}), 502
+        if product is None:
+            return jsonify({"error": "product not found"}), 404
+        return jsonify(product)
+
+    @app.get("/external/search")
+    def external_search():
+        name = request.args.get("name", "")
+        if not name:
+            return jsonify({"error": "query parameter 'name' is required"}), 400
+        try:
+            return jsonify(off.search_by_name(name))
+        except off.ExternalAPIError as exc:
+            return jsonify({"error": str(exc)}), 502
+
+    @app.post("/inventory/import/<barcode>")
+    def import_from_barcode(barcode):
+        """Fetch a product by barcode and add it to the inventory."""
+        body = request.get_json(silent=True) or {}
+        error = validate(body, require_name=False)
+        if error:
+            return jsonify({"error": error}), 400
+        try:
+            product = off.fetch_by_barcode(barcode)
+        except off.ExternalAPIError as exc:
+            return jsonify({"error": str(exc)}), 502
+        if product is None:
+            return jsonify({"error": "product not found"}), 404
+        product["price"] = body.get("price", 0)
+        product["quantity"] = body.get("quantity", 0)
+        return jsonify(db().add(product)), 201
 
     return app
 
