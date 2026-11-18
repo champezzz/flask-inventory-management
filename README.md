@@ -83,3 +83,6 @@ External HTTP calls are mocked, so tests run offline and are deterministic.
 
 Each feature was built on its own branch (`feature/crud-api`, `feature/external-api`,
 `feature/cli`, `docs/readme`), merged into `main` via pull request, and the branch deleted.
+
+## Author
+Osteen - Moringa School
